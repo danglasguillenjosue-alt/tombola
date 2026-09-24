@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tóbola Digital 🎟️ - Sorteos Rápidos</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS para leer Excel / CSV / Google Sheets -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur py-4 px-6">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-black tracking-wider text-amber-400 flex items-center gap-2">
+        🎟️ TÓBOLA DIGITAL
+      </h1>
+      <span class="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full font-medium">
+        Sorteos desde Google Sheets
+      </span>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-4xl w-full mx-auto p-4 sm:p-6 flex-1 flex flex-col gap-6">
+
+    <!-- Card: Fuentes de Datos -->
+    <section class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 shadow-xl">
+      <h2 class="text-lg font-bold mb-4 text-slate-200">1. Cargar Participantes</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Opción A: Archivo local -->
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/40 flex flex-col justify-between">
+          <div>
+            <label class="block text-sm font-semibold text-slate-300 mb-2">📁 Subir Archivo (.xlsx, .csv)</label>
+            <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" 
+              class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 cursor-pointer" />
+          </div>
+          <p class="text-xs text-slate-500 mt-2">Soporta archivos de Excel o CSV descargados.</p>
+        </div>
+
+        <!-- Opción B: Link de Google Sheets -->
+        <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-700/40 flex flex-col justify-between">
+          <div>
+            <label class="block text-sm font-semibold text-slate-300 mb-2">🔗 Enlace de Google Sheets</label>
+            <div class="flex gap-2">
+              <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/..." 
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-400" />
+              <button onclick="loadFromGoogleSheets()" 
+                class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition">
+                Cargar
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 mt-2">La hoja debe tener acceso público ("Cualquier persona con el enlace").</p>
+        </div>
+
+      </div>
+
+      <!-- Selector de columna -->
+      <div id="columnSelectorWrapper" class="hidden mt-5 pt-4 border-t border-slate-700/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-amber-400">Seleccionar columna de participantes:</label>
+          <select id="columnSelect" onchange="onColumnSelected()" 
+            class="mt-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-400">
+          </select>
+        </div>
+        <div class="text-sm text-slate-400">
+          Total de participantes: <span id="participantCount" class="font-bold text-amber-400">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Card: Tóbola / Ruleta -->
+    <section class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-8 shadow-xl flex-1 flex flex-col items-center justify-center text-center relative overflow-hidden">
+      
+      <!-- Display principal -->
+      <div class="w-full max-w-xl py-12 px-6 bg-slate-950/80 border-2 border-amber-500/30 rounded-2xl shadow-inner my-auto flex flex-col items-center justify-center min-h-[220px]">
+        <span class="text-xs uppercase tracking-widest text-slate-500 font-bold mb-2">Participante en Pantalla</span>
+        <div id="displayBox" class="text-3xl sm:text-5xl font-black text-amber-400 tracking-wide transition-all truncate w-full px-4">
+          ¡Listo para el sorteo!
+        </div>
+      </div>
+
+      <!-- Botón de Girar -->
+      <div class="mt-6 flex flex-wrap justify-center items-center gap-4">
+        <button id="spinBtn" onclick="spinTombola()" disabled 
+          class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black text-xl px-10 py-4 rounded-xl shadow-lg transform active:scale-95 transition-all">
+          🎰 ¡GIRAR TÓBOLA!
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Modal de Ganador -->
+  <div id="winnerModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border-2 border-amber-400/80 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl relative animate-bounce-short">
+      <div class="text-5xl mb-2">🎉</div>
+      <h3 class="text-xl font-bold text-slate-300 uppercase tracking-wider">¡Tenemos un Ganador!</h3>
+      
+      <div id="winnerName" class="text-3xl sm:text-4xl font-black text-amber-400 my-6 bg-slate-950/60 py-4 px-2 rounded-xl border border-amber-500/20">
+        -
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button onclick="removeWinnerAndClose()" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-semibold py-2 px-4 rounded-lg text-sm transition">
+          ❌ Remover a este ganador del sorteo
+        </button>
+        <button onclick="closeModal()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg text-sm transition">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <script>
+    let rawData = [];
+    let participants = [];
+    let currentWinnerIndex = -1;
+    let isSpinning = false;
+
+    // Escuchar cuando suben un archivo local
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        processWorkbook(workbook);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Cargar desde Google Sheets público
+    async function loadFromGoogleSheets() {
+      const urlInput = document.getElementById('sheetUrl').value.trim();
+      if (!urlInput) {
+        alert('Pegá un enlace válido de Google Sheets.');
+        return;
+      }
+
+      // Extraer ID de la hoja de Google Sheets
+      const matches = urlInput.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (!matches || !matches[1]) {
+        alert('Enlace no válido. Asegurate de copiar el enlace de la barra de dirección.');
+        return;
+      }
+
+      const sheetId = matches[1];
+      const csvExportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+
+      try {
+        const response = await fetch(csvExportUrl);
+        if (!response.ok) throw new Error('No se pudo acceder a la hoja.');
+        const csvText = await response.text();
+        const workbook = XLSX.read(csvText, { type: 'string' });
+        processWorkbook(workbook);
+      } catch (err) {
+        alert('Error al cargar la hoja. Verificá que la hoja esté configurada como pública ("Cualquier persona con el enlace").');
+      }
+    }
+
+    // Procesar Libro de Excel / CSV
+    function processWorkbook(workbook) {
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+      if (rawData.length === 0) {
+        alert('La hoja parece estar vacía.');
+        return;
+      }
+
+      // Obtener nombres de columnas
+      const columns = Object.keys(rawData[0]);
+      const select = document.getElementById('columnSelect');
+      select.innerHTML = '';
+
+      columns.forEach(col => {
+        const option = document.createElement('option');
+        option.value = col;
+        option.textContent = col;
+        select.appendChild(option);
+      });
+
+      document.getElementById('columnSelectorWrapper').classList.remove('hidden');
+      onColumnSelected();
+    }
+
+    // Actualizar lista según columna seleccionada
+    function onColumnSelected() {
+      const colName = document.getElementById('columnSelect').value;
+      participants = rawData
+        .map(row => String(row[colName] || '').trim())
+        .filter(name => name.length > 0);
+
+      document.getElementById('participantCount').textContent = participants.length;
+      document.getElementById('spinBtn').disabled = participants.length === 0;
+
+      if (participants.length > 0) {
+        document.getElementById('displayBox').textContent = "¡Todo listo!";
+      } else {
+        document.getElementById('displayBox').textContent = "Sin datos válidos";
+      }
+    }
+
+    // Animación de Tóbola
+    function spinTombola() {
+      if (isSpinning || participants.length === 0) return;
+
+      isSpinning = true;
+      document.getElementById('spinBtn').disabled = true;
+
+      const display = document.getElementById('displayBox');
+      let counter = 0;
+      let speed = 40; // milisegundos iniciales
+      const totalRounds = 45; // Cantidad de giros antes de parar
+
+      function step() {
+        const randomIndex = Math.floor(Math.random() * participants.length);
+        display.textContent = participants[randomIndex];
+
+        counter++;
+        if (counter < totalRounds) {
+          // Ir desacelerando el giro al final
+          if (counter > totalRounds - 15) speed += 15;
+          if (counter > totalRounds - 5) speed += 40;
+          setTimeout(step, speed);
+        } else {
+          // Ganador final
+          currentWinnerIndex = randomIndex;
+          display.textContent = participants[currentWinnerIndex];
+          showWinnerModal(participants[currentWinnerIndex]);
+          isSpinning = false;
+          document.getElementById('spinBtn').disabled = false;
+        }
+      }
+
+      step();
+    }
+
+    // Mostrar Modal y Confeti
+    function showWinnerModal(name) {
+      document.getElementById('winnerName').textContent = name;
+      const modal = document.getElementById('winnerModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // Lanza confeti 🎉
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('winnerModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function removeWinnerAndClose() {
+      if (currentWinnerIndex > -1) {
+        participants.splice(currentWinnerIndex, 1);
+        document.getElementById('participantCount').textContent = participants.length;
+        document.getElementById('displayBox').textContent = participants.length > 0 ? "¡Siguiente ronda!" : "Fin del sorteo";
+        document.getElementById('spinBtn').disabled = participants.length === 0;
+      }
+      closeModal();
+    }
+  </script>
+</body>
+</html>
